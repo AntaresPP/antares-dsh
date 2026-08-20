@@ -1,0 +1,13 @@
+# antares-dsh — bundle patch for the profile layer.
+#
+# `dsh plugin --profile <name> add <this-package>` appends the package to the
+# profile bundle list and the loader applies this patch: one insert row mounts
+# the host half (`antares-dsh`) on the host plane.
+#
+# The host half syncs the bundled `antares-dsh` agent preset (composition +
+# skills) into ~/.dsh/.agent-presets on first boot and later registers the
+# slash commands and ast-grep tools. The preset itself carries the
+# orchestrator persona, specialist subagent tools, and preset-scoped skills.
+- insert:
+    - id: antares-dsh
+      name: antares-dsh

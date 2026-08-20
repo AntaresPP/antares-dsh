@@ -1,0 +1,44 @@
+{
+  "name": "antares-dsh",
+  "version": "0.1.0",
+  "description": "oh-my-opencode-slim inspired multi-agent orchestration plugin for DeepSeek Harness (dsh).",
+  "type": "module",
+  "license": "MIT",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "agent-presets",
+    "docs",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "dsh-bundle",
+    "deepseek-harness",
+    "agent-preset",
+    "skills",
+    "orchestration",
+    "ast-grep"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@ast-grep/cli": "^0.45.1"
+  }
+}
