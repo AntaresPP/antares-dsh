@@ -39,8 +39,8 @@
         speed discovery, or the scope is broad/uncertain. Do not delegate when
         you already know the exact path and need the full content, for a single
         specific lookup, or when you are about to edit the file.
-      - librarian: external knowledge and library research. Uses web_search /
-        web_fetch for current, version-specific official docs and real-world
+      - librarian: external knowledge and library research. Uses web_search
+        for current, version-specific official docs and real-world
         examples. Delegate for fast-changing libraries (React, Next.js, AI
         SDKs), complex APIs, version-specific behavior, or unfamiliar edge
         cases. Do not delegate for stable built-in language knowledge you are
@@ -192,13 +192,34 @@
   name: cordis:group
   group: true
   isolate:
-    delegationControls: true
+    workflowEngine: true
   config:
     - id: tool-subagent-control
       name: '@deepseek-ai/dsh-tool-subagent-control'
 
     - id: tool-subagent-list-agents
       name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+
+    # Official companions (aligned with the official standard preset; REVIEW.md
+    # §5 S1-S3): session goals, scripted multi-agent workflows, and fresh-agent
+    # Ralph loops. All three packages are already shipped by @deepseek-ai/dsh-base,
+    # so enabling them is preset-only — zero extra installs.
+    - id: tool-goal
+      name: '@deepseek-ai/dsh-tool-goal'
+
+    - id: workflow-worker-thread
+      name: '@deepseek-ai/dsh-workflow-worker-thread'
+      config:
+        provider: spawn
+
+    - id: tool-workflow
+      name: '@deepseek-ai/dsh-tool-workflow'
+
+    - id: tool-ralph
+      name: '@deepseek-ai/dsh-tool-ralph'
+      config:
+        subagentProvider: spawn
+        maxRounds: 64
 
 # ── interaction / web / sessions ─────────────────────────────────────────────
 - id: tool-ask-user
@@ -212,7 +233,7 @@
 - id: tool-web
   name: '@deepseek-ai/dsh-tool-web'
   config:
-    fetch: true
+    fetch: false
     searchTimeoutMs: 60000
 
 # ── specialist: explorer ─────────────────────────────────────────────────────
@@ -274,7 +295,7 @@
       You are Librarian, a fast external-knowledge researcher for current,
       version-specific library and framework behavior.
 
-      - Use web_search and web_fetch. Prefer official documentation, release
+      - Use web_search. Prefer official documentation, release
         notes, and authoritative examples over blog summaries.
       - Pin findings to exact versions. When a fact is version-sensitive, name
         the version and the source URL.
@@ -284,7 +305,7 @@
       - Do not delegate to other agents. If the task is outside your role,
         return a brief reason instead of partial work.
     toolFilter:
-      allow: [read, glob, grep, ast_grep_search, web_search, web_fetch, ask_user_question]
+      allow: [read, glob, grep, ast_grep_search, web_search, ask_user_question]
 
 # ── specialist: designer ─────────────────────────────────────────────────────
 - id: agent-designer
@@ -371,7 +392,7 @@
         (councillor-alpha and councillor-beta) in parallel, in one assistant
         message.
       - Wait for each councillor's completion notice before synthesizing. Use
-        job_output / list_agents only to collect or confirm outstanding work;
+        list_agents only to collect or confirm outstanding work;
         do not busy-poll.
       - Compare the answers: agree on facts, surface disagreements explicitly,
         and explain why one recommendation is stronger.
@@ -380,7 +401,7 @@
       - You are text-in/text-out: you have no file tools. Never read or edit
         project files yourself; the councillors did the inspection.
     toolFilter:
-      allow: [councillor-alpha, councillor-beta, job_output, job_list, list_agents]
+      allow: [councillor-alpha, councillor-beta, list_agents, interrupt_agent]
 
 # ── councillors (model diversity is configured by the user) ─────────────────
 - id: agent-councillor-alpha

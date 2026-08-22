@@ -1,0 +1,6 @@
+name: Combo Antares
+description: >-
+  combo-anchored 锚定机制（think/execute 分离 + 审议门 + 审议滴灌）叠加 antares-dsh
+  编排（8 专家 subagent + deepwork/reflect/loop + ast-grep 工具 + 8 技能）。
+  Anchored orchestration: combination anchoring package + Antares specialist team.
+order: 13

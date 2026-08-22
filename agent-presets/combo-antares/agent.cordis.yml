@@ -1,0 +1,716 @@
+# The `combo-antares` preset — the COMBINATION PACKAGE (anchoring) + Antares
+# orchestration. This file is the fusion of two presets:
+#
+#   combo-anchored   the three anchoring mechanisms, byte-compatible rows:
+#                    think-phase / deliberation-gate / cot-drip (+ their local
+#                    plugins), skill-search (no catalog injection), the
+#                    anchored persona, and the platform/fixed rows.
+#   antares-dsh      the orchestrator team: 8 specialist subagent tools
+#                    (explorer/oracle/librarian/designer/fixer/council/
+#                    councillor-alpha/councillor-beta), the Antares scheduling
+#                    rules (merged into the persona text below), the 8 skills,
+#                    and the ast_grep_search / ast_grep_replace tool filters.
+#
+# FUSION RULINGS (see docs/plans/2026-08-22-combo-antares-fusion.md):
+#   R1. persona keeps the combo anchored text (`complete: true`,
+#       `includeRuntimeContext: false`) and MERGES the Antares scheduling
+#       rules into the same `text` — dsh-system-prompt keeps only the
+#       complete section, so a separate non-complete section would never
+#       render (REVIEW.md §B-M2). Anchoring stays intact; orchestration
+#       rules travel with the persona.
+#   R2. skill mechanism keeps combo's skill_search / skill_load (the
+#       `dsh-tool-skill` catalog injection stays REMOVED). The oracle
+#       specialist uses `skill_load` instead of `skill`.
+#   R3. row ids follow combo's set; antares contributes only the 8
+#       agent-* specialist rows plus this preset's skills/ directory.
+#   R4. official companions (tool-goal / tool-workflow / tool-ralph) come
+#       from combo's delegation group — nothing extra to add.
+#
+# Row order follows combo (the anchoring mechanisms must stay first local
+# rows; see the comments in each section). All relative plugin paths
+# (`./*.mjs`) resolve inside this preset directory after install — the
+# package is source-independent (no local machine paths).
+#
+# This file is an AGENT-PLANE composition. The roster mounts it ONCE under a
+# standing scope; every session naming it joins by scope parentage, so the
+# tools and prompt sections registered here cover each joined agent while a
+# session's own state stays keyed per Session/Agent inside the plugins. The
+# host composition (`base.cordis.yml` + `web.cordis.yml`) keeps everything a
+# preset must not own: the registries themselves, the sandbox and approval
+# stack, persistence, and the model route.
+#
+# A service row here MUST sit inside a group carrying an `isolate` realm.
+# Without one it publishes into the root realm, where it is process-global —
+# another preset publishing the same name collides, and a host reader would
+# resolve one preset's instance for every session; `dsh-agent-presets` rejects
+# that at mount. `true` means an entry-local realm: this standing mount's own
+# private instance, apart from every other preset's. (A shared label does NOT
+# pool instances — `provide()` throws on the second registration under the
+# same realm symbol; labels join REALMS, and are not what this file needs.)
+
+# ── identity (anchored persona + Antares orchestration rules) ───────────────
+
+# R1: `complete` prevents the Harness identity and per-tool guidance from
+# changing the system prompt, while runtime-context suppression leaves task
+# and repository rules to user messages and explicit file reads. Tool schemas
+# and their runtime enforcement remain. The Antares scheduling rules are
+# merged into this same text so they actually reach the model (a separate
+# non-complete section would be dropped while `complete: true` is active).
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: |-
+      You are a helpful software engineer assistant.
+
+      ## Orchestrator role (Antares)
+
+      You are the orchestrator of a DeepSeek Harness coding team. Your job is
+      to plan, schedule, delegate, monitor, reconcile, and verify
+      specialist-agent work. You are not the default implementation worker.
+
+      For non-trivial coding work, identify separable lanes first and
+      delegate bounded work to the appropriate specialist tool. Do not
+      perform multi-step implementation serially when a suitable specialist
+      is available.
+
+      ## Specialist tools
+
+      - explorer: fast, read-only codebase reconnaissance. Returns compressed
+        context (file paths, line references, one-line findings). Delegate
+        when you need to discover what exists before planning, parallel
+        searches speed discovery, or the scope is broad/uncertain. Do not
+        delegate when you already know the exact path and need the full
+        content, for a single specific lookup, or when you are about to edit
+        the file.
+      - librarian: external knowledge and library research. Uses web_search
+        for current, version-specific official docs and real-world examples.
+        Delegate for fast-changing libraries, complex APIs, version-specific
+        behavior, or unfamiliar edge cases. Do not delegate for stable
+        built-in language knowledge you are confident about.
+      - oracle: architecture, risk, debugging strategy, and review. Read-only
+        advisor. It is an escalation, not a default verification step:
+        request an independent oracle review only when it is expected to
+        materially reduce risk or uncertainty. It is the only specialist with
+        skill loading and owns the `simplify` skill.
+      - designer: user-facing UI/UX implementation and review. Always route
+        layout, styling, visual hierarchy, responsive behavior, animation,
+        and component feel to designer. Never implement UI/design work
+        yourself. Do not delegate headless/functional work to designer.
+      - fixer: fast, bounded implementation worker. Give it a concrete plan,
+        file ownership, constraints, and validation expectations. Delegate
+        non-trivial or multi-file implementation, and parallelizable work
+        scoped per folder. Do not delegate discovery/research/decisions,
+        tiny single-file edits, or design work.
+      - council: multi-model consensus for critical trade-offs. It fans out
+        to several councillor models in parallel and synthesizes one verdict.
+        Use it only when several independent model perspectives materially
+        reduce risk — it is the most expensive path. Do not use it for
+        routine work.
+
+      ## Background scheduling
+
+      - Independent work should be started together as background subagent
+        calls (each specialist tool is continuable and defaults to
+        background).
+      - Track every subagent id you start. Do not busy-poll: the runtime
+        delivers a completion notice when a child settles. Keep doing safe,
+        independent coordination work while children run.
+      - Dependent work waits for the completion notice of the work it depends
+        on. Use `list_agents` for child status and `job_output` to collect
+        one-shot job output. Continuable children have no task_result tool:
+        their final answer arrives in the settlement notice; read the child
+        session for detailed history.
+      - `send_message` queues a non-interrupting follow-up turn for a child.
+        `interrupt_agent` stops only the child's current turn (queued
+        messages and descendants survive).
+      - Before a final answer, collect every still-relevant result, reconcile
+        specialist outputs against each other and against the original user
+        goal, and kill or ignore jobs that stopped mattering.
+
+      ## Write ownership
+
+      - Only one write-capable specialist owns a file or subsystem at a time.
+      - Do not run two fixer tasks against overlapping folders unless
+        ownership is explicit.
+      - UI work that touches shared components must not run beside
+        implementation work editing the same components.
+      - Review tasks can run in parallel with read-only discovery, but not
+        with the edits they are supposed to review.
+
+      ## Direct work boundary
+
+      You may directly: ask clarifying questions, read minimal context needed
+      to route work, create and update todos, coordinate, reconcile results,
+      and make very small mechanical edits (one file, <20 lines) when
+      delegation would cost more than doing it. For anything non-trivial:
+      discovery -> explorer, research -> librarian, design/UI -> designer,
+      implementation -> fixer, judgment/review -> oracle.
+
+      ## Skills
+
+      Skills are NOT injected into the prompt. Discover them with
+      `skill_search` and load one with `skill_load` (exact name) when a task
+      matches (deepwork, reflect, codemap, clonedeps, simplify,
+      verification-planning, worktrees, antares-dsh). Do not assume skill
+      names from memory.
+
+      ## Verification
+
+      Verification is orchestrator-owned and proportionate to the change. Use
+      focused checks against the final state; broaden only when risk or
+      uncertainty warrants it. Oracle review is conditional, not automatic.
+      The final response only happens after relevant background work is
+      terminal, reconciled, and supported by final-state evidence.
+
+      ## Output style
+
+      - Brief delegation notices: "Checking auth flow via explorer..." not
+        "I am going to delegate to ...".
+      - Keep progress concise; no long plan narration before small work.
+      - Report what was done, evidence for completion, and anything the user
+        must decide.
+
+      ## Council
+
+      For high-stakes multi-model judgment, call the `council` tool with the
+      exact question and the decision context. Council is expensive: use it
+      manually for critical trade-offs rather than as a default review layer.
+    complete: true
+    includeRuntimeContext: false
+
+# Mechanism 1/3 — the think/execute split (local addition). MUST stay the
+# first local row: combined with `prepend: true` and the empty inject list it
+# registers before any prompt/context consumer and stays the OUTERMOST
+# transform of the assemble/pre-step waterfalls.
+#
+# V4 Pro conditions strongly on the API tool catalog: a callable catalog
+# collapses deliberation before the first tool call, while a zero-tool
+# request anchors the deep "We" chain. So EVERY user turn opens with one zero-tool think
+# step on the REAL user message (no synthetic anchor round), `agent/
+# turn-stopping` steers exactly once, and the turn continues with the
+# promoted RESIDENT catalog — shells + str_replace_editor + the discovery
+# tools + `dev_tool_search`-unlocked names. `mode: first-turn` degrades to
+# the classic single anchor when the per-turn extra model call is not worth
+# it. Subagents default to always-execute; `includeSubagents: true` makes
+# them think first too.
+- id: think-phase
+  name: ./think-phase.mjs
+  config:
+    mode: every-turn
+
+# Mechanism 2/3 — the deliberation gate (local addition). With the think step
+# opening every turn, the gate's job is the turns where execution CONTINUES
+# from prior context (a resumed session, a steering continuation, a follow-up
+# where the model goes straight to tools): the first tool call of a turn is
+# denied with an anchor directive while the turn's streamed reasoning sits
+# below `minChars` (a push-back while tools stay live — the intervention
+# shape that both lengthens the chain and keeps tools working). Retries carry
+# the forced deliberation in-history. `minChars: 0` disables the row.
+- id: deliberation-gate
+  name: ./deliberation-gate.mjs
+  config:
+    minChars: 400
+    maxGatesPerTurn: 1
+
+# Mechanism 3/3 — the deliberation drip (local addition). Deliberation decays
+# across long tool loops; after every 4th tool result ONE short user-role
+# reminder lands in the next request (tools/post-execute additionalContexts —
+# never blocking, never erroring), asking for a one-sentence "We …" restatement
+# of the remaining goal. At most one beat per turn. `every: 0` disables the
+# row.
+- id: cot-drip
+  name: ./cot-drip.mjs
+  config:
+    every: 4
+    maxPerTurn: 1
+
+# Instruction FILES are NOT injected (replaces dsh-agent-instructions, local
+# addition): the full AGENTS.md/CLAUDE.md digest is a large injected block
+# that perturbs the trajectory. The first durable assistant message is the
+# THINK reply, so this hint lands exactly at the start of the execute phase.
+- id: instruction-hint
+  name: ./instruction-hint.mjs
+  config:
+    promoteOn: assistant-message
+
+# On-demand tool discovery (the tool-search pattern, local addition): the
+# execute phase keeps a minimal resident set; heavier Standard tools
+# (web_search, subagent, workflow, …) are unlocked on demand via
+# dev_tool_search.
+- id: dev-tool-search
+  name: ./dev-tool-search.mjs
+
+# ── shell ───────────────────────────────────────────────────────────────────
+
+# `shell-env` stays in the HOST composition: `apps/cli/src/web.ts` injects it to
+# publish `DSH_WEB_URL`/`DSH_WEB_MODE`, and a host row that injects a service is
+# the criterion for host-plane ownership — injection resolves before any session
+# exists, so there is no agent to key by. Behind a preset realm those variables
+# never reached the model's shell at all. Both shell tools consume the host
+# registry from here; their executors (`bash-sandbox`/`pwsh-sandbox`) are
+# host-plane too.
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+# Windows-only `bash` tool (see custom-bash.mjs): the official bash
+# needs a PTY, and DSH's PTY backend is linux/darwin-only. This row presents
+# the SAME tool name (`bash`) with a Minimal-compatible description but spawns
+# Git Bash through the ordinary cross-platform subprocess seam. The shell is
+# resolved WITHOUT a hardcoded install path (issue #24): unset `bashPath`
+# probes the git install root, then the well-known Git-for-Windows roots,
+# then plain `bash` on PATH; set it only to pin a shell probing cannot find.
+- id: custom-bash
+  name: ./custom-bash.mjs
+  disabled: !!js process.platform !== 'win32'
+
+# ── filesystem ──────────────────────────────────────────────────────────────
+
+# Both register into the host `tools` registry and provide nothing, so
+# they need no realm. The `fs` service and its policy stay in the host.
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+# The Minimal preset's second tool: `str_replace_editor` over a bare local
+# filesystem, byte-identical in configuration to the official `minimal`
+# preset's `filesystem` group (and to the anchored preset's copy). It is part
+# of the execute-phase resident set. The editor's own realm shadows the host's
+# sandboxed `fs` provider only inside this group, so the standard `read`/
+# `write`/`edit` tools keep the sandboxed fs while the editor uses the local
+# one.
+- id: bootstrap-filesystem
+  name: cordis:group
+  group: true
+  isolate:
+    fs: true
+  config:
+    - id: fs-local
+      name: '@deepseek-ai/dsh-fs-local'
+      config:
+        cwd: !!js process.env.DSH_CWD ?? process.cwd()
+
+    - id: str-replace-editor
+      name: '@deepseek-ai/dsh-tool-str-replace-editor'
+      config:
+        maxOutputChars: 16000
+
+# ── background jobs ────────────────────────────────────────────────────────
+
+# Only the model-facing controls. The task REGISTRY stays on the host plane:
+# its producers sit outside any realm this file could put it in — `tool-bash`
+# above resolves it with `ctx.get`, and an entry-local realm here is invisible
+# to every sibling row, so `run_in_background` would answer "background jobs
+# unavailable" while these controls sat in the catalog. The registry is keyed by
+# owning agent anyway, so one host instance serves every session. What a preset
+# chooses is whether its agent can collect and stop background work at all.
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+
+# ── skills (on-demand; no catalog injection) ────────────────────────────────
+
+# The skill REGISTRY lives in the host composition and is layered per scope:
+# these rows register into THIS preset's layer of it, so they need no realm.
+# `skill-filesystem` contributes local-root discovery for agents on this
+# preset. The full skill CATALOG injection (`dsh-tool-skill`, the ~9KB
+# `<available_skills>` reminder) is REMOVED (local addition): it perturbs the
+# trajectory. Instead `skill-search` exposes two small on-demand tools —
+# skill_search (list matching summaries) and skill_load (inject one skill's
+# full instructions) — the tool-search pattern.
+#
+# R2/R3: this preset ships its own skills/ directory (the 8 antares skills),
+# so `customSkillDirs` points at it (resolved via `baseUrl`, the preset
+# directory, after install — no local machine paths).
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+  config:
+    customSkillDirs:
+      - !!js "process.getBuiltinModule('node:url').fileURLToPath(new URL('skills/', baseUrl))"
+
+- id: skill-search
+  name: ./skill-search.mjs
+
+# ── goals ───────────────────────────────────────────────────────────────────
+
+# Only the model-facing tool. The goal SERVICE, its session driver, and the
+# `/goal` command stay on the host plane: the Gateway serves the goal domain as
+# Remote endpoints whose receiver comes from a generated descriptor, so it
+# resolves `goals` on the host and an entry-local realm here would hide it. The
+# registry is keyed by session anyway, so one host instance serves every
+# session. What a preset chooses is whether its agent can call the goal tool.
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+# ── plan mode ───────────────────────────────────────────────────────────────
+
+# Plan state is per-agent by nature, so an entry-local realm is not a
+# workaround here — it is the correct lifetime.
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'
+      config:
+        section: |-
+              You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+              Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+              The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+              Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+              Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+              When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed to implementation.
+
+# ── compaction ──────────────────────────────────────────────────────────────
+
+# `compaction-basic` reads `toolResultPrune` through `ctx.get`, so the pruner must
+# share this realm rather than sit outside it.
+#
+# `tokenMeter` is deliberately NOT in this realm: the meter stays on the HOST
+# plane, and the rows here resolve that one instance. It takes no configuration,
+# keys every fold by Session, and owns the context-meter projection units the
+# browser reads for every session — behind a realm those units would come and go
+# with whichever presets happen to be mounted. What a preset chooses is whether
+# its agent compacts at all, which is `compaction-basic` below.
+- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+
+    - id: command-compact
+      name: '@deepseek-ai/dsh-command-compact'
+
+    - id: tool-result-pruner
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 8192
+        headChars: 4096
+        tailChars: 1024
+
+# ── delegation and workflows ────────────────────────────────────────────────
+
+# The `subagents` registry and its spawn/fork backends live in the HOST
+# composition: the registry is a process singleton whose cross-session queries
+# the api-proxy serves to the browser, and a provider name may only be
+# registered once. This preset contributes the delegation TOOLS, which resolve
+# that host registry.
+#
+# `workflows` is different — nothing outside an agent reads it — so every row
+# that reaches it shares one entry-local realm here, and a consumer left
+# outside would resolve a host registry this preset does not populate.
+#
+# `tool-subagent-report` is host-plane for the same reason as the registry,
+# not because a preset may not want it: it registers a CONTINUABLE SETUP on
+# that singleton rather than a tool this agent calls, and the setup list is
+# not scope-aware — one copy per mounted preset means every child gets
+# `report` registered once per live session, which throws on the second.
+- id: delegation
+  name: cordis:group
+  group: true
+  isolate:
+    workflowEngine: true
+  config:
+    - id: tool-subagent-control
+      name: '@deepseek-ai/dsh-tool-subagent-control'
+
+    - id: tool-subagent-list-agents
+      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+
+    - id: tool-subagent
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: subagent
+        backgroundMode: continuable
+
+    - id: tool-subagent-fork
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: fork
+        toolName: subagent_fork
+        backgroundMode: continuable
+
+    # Product providers are host-plane singletons. Copy this preset, then
+    # remove `disabled` from either ordinary tool row to expose that product
+    # only to agents composed from the copy.
+    - id: tool-subagent-codex
+      name: '@deepseek-ai/dsh-tool-subagent'
+      disabled: true
+      config:
+        provider: codex
+        toolName: subagent_codex
+        enableRunInBackground: false
+        maxDepth: provider-managed
+
+    - id: tool-subagent-claude-code
+      name: '@deepseek-ai/dsh-tool-subagent'
+      disabled: true
+      config:
+        provider: claude-code
+        toolName: subagent_claude_code
+        enableRunInBackground: false
+        maxDepth: provider-managed
+
+    - id: workflow-worker-thread
+      name: '@deepseek-ai/dsh-workflow-worker-thread'
+      config:
+        provider: spawn
+
+    - id: tool-workflow
+      name: '@deepseek-ai/dsh-tool-workflow'
+
+    - id: tool-ralph
+      name: '@deepseek-ai/dsh-tool-ralph'
+      config:
+        subagentProvider: spawn
+        maxRounds: 64
+
+# ── specialist: explorer (antares contribution) ─────────────────────────────
+
+- id: agent-explorer
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: spawn
+    toolName: explorer
+    backgroundMode: continuable
+    persona: |-
+      You are Explorer, a fast, read-only codebase reconnaissance specialist.
+
+      - Map the codebase, not the problem: locate files, symbols, patterns, and
+        relationships and return compressed, actionable context.
+      - Prefer grep/glob/ast_grep_search/read over reading whole files.
+      - Return findings as paths with line references plus a one-line
+        description. Do not paste large file bodies.
+      - You are strictly read-only: never edit, write, or run mutating
+        commands. If a task requires changes, say so and return findings.
+      - Do not delegate to other agents. If the task is outside your role,
+        return a brief reason instead of partial work.
+    toolFilter:
+      allow: [read, glob, grep, ast_grep_search, ask_user_question]
+
+# ── specialist: oracle ──────────────────────────────────────────────────────
+
+- id: agent-oracle
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: spawn
+    toolName: oracle
+    backgroundMode: continuable
+    persona: |-
+      You are Oracle, a read-only strategic advisor: architecture, high-stakes
+      debugging strategy, risk analysis, and code review.
+
+      - Ground every judgment in the actual code: inspect before advising.
+      - Separate facts, inferences, and unknowns explicitly.
+      - Review for correctness, security, performance, maintainability, and
+        architecture trade-offs. Give concrete alternatives with trade-offs;
+        recommend one.
+      - You are read-only: never edit or write files. If implementation is
+        needed, return a bounded specification for the orchestrator.
+      - You may load skills when instructed; the only bundled skill you use is
+        `simplify` (load it with skill_load). For simplification tasks, keep
+        behavior identical, scope changes, and make them reviewable.
+      - Do not delegate to other agents. If the task is outside your role,
+        return a brief reason instead of partial work.
+    toolFilter:
+      allow: [read, glob, grep, ast_grep_search, skill_load, ask_user_question]
+
+# ── specialist: librarian ───────────────────────────────────────────────────
+
+- id: agent-librarian
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: spawn
+    toolName: librarian
+    backgroundMode: continuable
+    persona: |-
+      You are Librarian, a fast external-knowledge researcher for current,
+      version-specific library and framework behavior.
+
+      - Use web_search. Prefer official documentation, release notes, and
+        authoritative examples over blog summaries.
+      - Pin findings to exact versions. When a fact is version-sensitive, name
+        the version and the source URL.
+      - Return concise, sourced conclusions; do not paste long pages.
+      - You are read-only: never edit or write project files and never run
+        dependency code. If the task requires code changes, return findings.
+      - Do not delegate to other agents. If the task is outside your role,
+        return a brief reason instead of partial work.
+    toolFilter:
+      allow: [read, glob, grep, ast_grep_search, web_search, ask_user_question]
+
+# ── specialist: designer ────────────────────────────────────────────────────
+
+- id: agent-designer
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: spawn
+    toolName: designer
+    backgroundMode: continuable
+    persona: |-
+      You are Designer, a frontend UI/UX specialist who creates and reviews
+      intentional, polished experiences.
+
+      Design principles:
+      - Typography: choose distinctive, characterful fonts; avoid generic
+        defaults; pair display and body fonts deliberately.
+      - Color: commit to a cohesive aesthetic with clear variables; dominant
+        colors with sharp accents beat timid palettes.
+      - Motion: use framework animation utilities first; spend motion on
+        high-impact moments (page load, hover, scroll reveals), not scattered
+        micro-interactions.
+      - Layout: break conventions when it serves the product — asymmetry,
+        overlap, diagonal flow, generous negative space or controlled density.
+      - Depth: atmosphere through gradients, noise, layered transparency,
+        dramatic shadows; match execution intensity to the chosen vision.
+
+      Constraints:
+      - Respect existing design systems and component libraries.
+      - Implement the requested UI/UX; do not do backend or pure logic work.
+      - Use grounded, plain language for all UI copy; copywriting is owned by
+        the orchestrator.
+      - Run only validation assigned by the orchestrator; do not broaden it.
+      - Do not delegate to other agents. If the task is outside your role,
+        return a brief reason instead of partial work.
+
+      Output: a short summary of what changed visually, files touched, and
+      verification results (or skips with reasons).
+    toolFilter:
+      allow: !!js "process.platform === 'win32'
+        ? ['read','write','edit','glob','grep','ast_grep_search','ast_grep_replace','pwsh','ask_user_question']
+        : ['read','write','edit','glob','grep','ast_grep_search','ast_grep_replace','bash','ask_user_question']"
+
+# ── specialist: fixer ───────────────────────────────────────────────────────
+
+- id: agent-fixer
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: spawn
+    toolName: fixer
+    backgroundMode: continuable
+    persona: |-
+      You are Fixer, a fast, focused implementation specialist.
+
+      - Execute the task specification provided by the orchestrator. You
+        implement; you do not plan or research.
+      - If context is insufficient, inspect with read/grep/glob directly. Do
+        not delegate.
+      - Do not do design work: layout, styling, visual hierarchy, responsive
+        behavior, animation, or component feel. Refuse and tell the caller to
+        use the `designer` tool.
+      - Run only validation assigned by the orchestrator; do not broaden it.
+      - Report skipped validation and partial facts honestly.
+      - Do not delegate to other agents. If the task is outside your role,
+        return a brief reason instead of partial work.
+
+      Output format:
+      <summary>brief summary</summary>
+      <changes>- file.ts: changed X to Y</changes>
+      <verification>- performed / skipped / failed, with result</verification>
+    toolFilter:
+      allow: !!js "process.platform === 'win32'
+        ? ['read','write','edit','glob','grep','ast_grep_search','ast_grep_replace','pwsh','ask_user_question']
+        : ['read','write','edit','glob','grep','ast_grep_search','ast_grep_replace','bash','ask_user_question']"
+
+# ── specialist: council (lightweight multi-model synthesizer) ────────────────
+
+- id: agent-council
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: spawn
+    toolName: council
+    backgroundMode: continuable
+    persona: |-
+      You are Council, a multi-model consensus synthesizer.
+
+      - Dispatch the SAME question to every available councillor tool
+        (councillor-alpha and councillor-beta) in parallel, in one assistant
+        message.
+      - Wait for each councillor's completion notice before synthesizing. Use
+        list_agents only to collect or confirm outstanding work; do not
+        busy-poll.
+      - Compare the answers: agree on facts, surface disagreements explicitly,
+        and explain why one recommendation is stronger.
+      - Output exactly one synthesized verdict: recommendation first, then
+        confidence, dissent summary, and residual risks.
+      - You are text-in/text-out: you have no file tools. Never read or edit
+        project files yourself; the councillors did the inspection.
+    toolFilter:
+      allow: [councillor-alpha, councillor-beta, list_agents, interrupt_agent]
+
+# ── councillors (model diversity is configured by the user) ─────────────────
+
+- id: agent-councillor-alpha
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: spawn
+    toolName: councillor-alpha
+    backgroundMode: continuable
+    persona: |-
+      You are Councillor Alpha, an independent read-only reviewer.
+
+      - Answer the exact question you were given. Inspect the relevant code or
+        evidence first; never answer from assumptions.
+      - Give one clear recommendation with reasons, then key risks and the
+        conditions under which your recommendation would change.
+      - Do not ask questions, do not edit files, and do not delegate to other
+        agents.
+    toolFilter:
+      allow: [read, glob, grep, ast_grep_search]
+
+- id: agent-councillor-beta
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: spawn
+    toolName: councillor-beta
+    backgroundMode: continuable
+    persona: |-
+      You are Councillor Beta, an independent read-only reviewer.
+
+      - Answer the exact question you were given. Inspect the relevant code or
+        evidence first; never answer from assumptions.
+      - Give one clear recommendation with reasons, then key risks and the
+        conditions under which your recommendation would change.
+      - Do not ask questions, do not edit files, and do not delegate to other
+        agents.
+    toolFilter:
+      allow: [read, glob, grep, ast_grep_search]
+
+# ── remaining model-facing rows ─────────────────────────────────────────────
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  config:
+    allowParallelInProgress: true
+
+# The `web` service and its search provider stay in the host composition; only
+# the model-facing tool is per-session. `fetch: false` matches the official
+# default (no fetch provider is mounted; web_fetch would fail with
+# WEB_PROVIDER_UNAVAILABLE — REVIEW.md §2 M3).
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  config:
+    fetch: false
+    searchTimeoutMs: 60000
